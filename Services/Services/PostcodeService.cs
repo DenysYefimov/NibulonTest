@@ -1,10 +1,8 @@
 ﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Common.Dtos;
 using Common.Models;
 using Db;
-using Db.Models;
-using Humanizer;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using Services.Interfaces;
@@ -15,73 +13,18 @@ namespace Services.Services
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly IMapper _mapper;
+        private readonly IAupImporter _aupImporter;
 
-        public PostcodeService(ApplicationDbContext dbContext, IMapper mapper)
+        public PostcodeService(ApplicationDbContext dbContext, IMapper mapper, IAupImporter aupImporter)
         {
             _dbContext = dbContext;
             _mapper = mapper;
+            _aupImporter = aupImporter;
         }
 
-        public async Task ImportAupFromExcelAsync(IFormFile file)
+        public async Task ImportAupFromExcelAsync(Stream excelData)
         {
-            using var stream = new MemoryStream();
-            await file.CopyToAsync(stream);
-            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-            using var package = new ExcelPackage(stream);
-            var worksheet = package.Workbook.Worksheets[0];
-            var rowCount = worksheet.Dimension.Rows;
-
-            var existingRegions = await _dbContext.Regions
-                .ToDictionaryAsync(r => r.Name, r => r.Code);
-
-            var existingDistricts = await _dbContext.Districts
-                .ToDictionaryAsync(d => d.Name, d => d.Code);
-
-            for (int row = 3; row <= rowCount; row++)
-            {
-                var regionName = worksheet.Cells[row, 2].Text;
-                var districtName = worksheet.Cells[row, 4].Text;
-                var cityName = worksheet.Cells[row, 5].Text;
-                var postcode = worksheet.Cells[row, 6].Text;
-                var cityCode = worksheet.Cells[row, 9].Text.Truncate(20);
-
-                if (!existingRegions.ContainsKey(regionName))
-                {
-                    var newRegion = new Region { Name = regionName };
-                    _dbContext.Regions.Add(newRegion);
-                    await _dbContext.SaveChangesAsync();
-                    existingRegions[regionName] = newRegion.Code;
-                }
-
-                if (!existingDistricts.ContainsKey(districtName))
-                {
-                    var newDistrict = new District { Name = districtName };
-                    _dbContext.Districts.Add(newDistrict);
-                    await _dbContext.SaveChangesAsync();
-                    existingDistricts[districtName] = newDistrict.Code;
-                }
-
-                var districtCode = existingDistricts[districtName];
-                var regionCode = existingRegions[regionName];
-
-                var city = await _dbContext.Cities.FirstOrDefaultAsync(c => c.Code == cityCode)
-                    ?? new City { Code = cityCode, Name = cityName, DistrictCode = districtCode, RegionCode = regionCode };
-
-                var aup = new Aup
-                {
-                    Postcode = postcode,
-                    CityName = cityName,
-                    City = city,
-                    CityCode = cityCode,
-                    RegionCode = regionCode,
-                    RegionName = regionName,
-                    DistrictCode = districtCode,
-                    DistrictName = districtName
-                };
-
-                _dbContext.Aups.Add(aup);
-                await _dbContext.SaveChangesAsync();
-            }
+            await _aupImporter.ImportDataAsync(excelData);
         }
 
         public Task<List<AupDto>> GetAupsAsync(PaginationSettings paginationSettings)
@@ -89,7 +32,7 @@ namespace Services.Services
             return _dbContext.Aups
                 .Skip((paginationSettings.PageNumber - 1) * paginationSettings.PageSize)
                 .Take(paginationSettings.PageSize)
-                .Select(a => _mapper.Map<AupDto>(a))
+                .ProjectTo<AupDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
         }
 

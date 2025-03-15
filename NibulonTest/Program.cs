@@ -42,6 +42,7 @@ public class Program
         builder.Services.AddSingleton(mapper);
 
         builder.Services.AddScoped<IPostcodeService, PostcodeService>();
+        builder.Services.AddScoped<IAupImporter, AupImporter>();
 
         var app = builder.Build();
 

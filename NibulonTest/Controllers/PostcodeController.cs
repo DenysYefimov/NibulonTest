@@ -48,7 +48,8 @@ namespace NibulonTest.Controllers
                 return BadRequest("File is empty");
             }
 
-            await _postcodeService.ImportAupFromExcelAsync(file);
+            using var readStream = file.OpenReadStream();
+            await _postcodeService.ImportAupFromExcelAsync(readStream);
             return Ok();
         }
 

@@ -1,6 +1,5 @@
 ﻿using Common.Dtos;
 using Common.Models;
-using Microsoft.AspNetCore.Http;
 
 namespace Services.Interfaces
 {
@@ -10,7 +9,7 @@ namespace Services.Interfaces
         Task<List<string>> GetPostcodesWithoutCityAsync();
         Task<List<string>> GetPostcodesWithoutDistrictAsync();
         Task<List<string>> GetPostcodesWithoutRegionAsync();
-        Task ImportAupFromExcelAsync(IFormFile file);
+        Task ImportAupFromExcelAsync(Stream excelData);
         Task<byte[]> ExportAupToExcelAsync();
     }
 }
